@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forex Intelligence</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo">FX</span><span>Scalping Intelligence</span><span class="tag">PAPER ONLY</span></div>
+  <div class="top-right">
+    <span id="stream-state" class="badge neutral" title="live update stream">STREAM</span>
+    <select id="tz" title="display timezone"><option value="UTC">UTC</option><option value="Asia/Karachi">Asia/Karachi</option></select>
+    <span id="clock" class="mono"></span>
+    <button id="token-btn" class="ghost" title="API token (only needed if API_TOKEN is set)">Token</button>
+  </div>
+</header>
+<nav class="nav" id="nav">
+  <a href="#/command">Command Center</a>
+  <a href="#/signals">Signal Explorer</a>
+  <a href="#/symbol">Symbol Intelligence</a>
+  <a href="#/models">Model Lab</a>
+  <a href="#/backtest">Backtest Analytics</a>
+  <a href="#/paper">Paper Journal</a>
+  <a href="#/events">Economic Events</a>
+  <a href="#/settings">Settings / Health</a>
+</nav>
+<main id="view" aria-live="polite"></main>
+<div id="toast" role="status"></div>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js" integrity="sha384-JZigAjwiaZtkUbA44CWkPaT3iBb/mU5pO6QOANp+OqHd4q+1+7MG1kzp2OOP9ZfP" crossorigin="anonymous"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

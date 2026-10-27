@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+data/*.db
+data/*.db-*
+models/*/
+!models/.gitkeep
+.pytest_cache/
+node_modules/
+data/*.log
+data/cache/
+.pytest_cache/
+__pycache__/
+*.pyc
