@@ -1,0 +1,464 @@
+================================================================================
+ FOREX SCALPING INTELLIGENCE - COMPLETE GUIDE (plain text)
+ Project folder: F:\Trading_Bot
+================================================================================
+
+WHAT THIS IS
+------------
+A local research and PAPER-TRADING program for XAU/USD (gold), EUR/USD, GBP/USD.
+It downloads free price data, analyses the market on every 5-minute candle, and
+tells you two separate things:
+  1) DIRECTIONAL FORECAST  - UP / DOWN / NEUTRAL for the next 6 candles
+  2) TRADE DECISION        - BUY / SELL / WAIT (and CANNOT ASSESS if data is bad)
+It NEVER places real orders. There is no broker order code in the project.
+
+IMPORTANT HONEST RESULT
+-----------------------
+Tests on 12 months of real data with real spread, slippage and commission showed
+that none of the 4 strategies and none of the trained models makes money after
+costs (about -0.15 R per trade for gold, -0.29 R for EUR/USD and GBP/USD).
+So the normal answer is WAIT with the blocker NO_VALIDATED_EDGE. That is the
+program being honest, not broken. A 70-80% win rate is NOT achieved and is NOT
+promised. Not financial advice.
+
+
+================================================================================
+ PART 1 - RUN IT LOCALLY (Windows PowerShell)
+================================================================================
+
+1.1  EVERY TIME you open a new PowerShell window
+-------------------------------------------------
+    cd F:\Trading_Bot
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
+    .\.venv\Scripts\Activate.ps1
+(The prompt must start with (.venv). If it does not, activate again.)
+
+1.2  ONE-TIME SETUP (only if .venv does not exist)
+--------------------------------------------------
+    python -m venv .venv
+    .\.venv\Scripts\Activate.ps1
+    pip install -r requirements.txt
+    copy .env.example .env         (optional - works without any keys)
+
+1.3  FIRST RUN
+--------------
+    python main.py doctor
+        Health check. Shows PASS / WARN / FAIL for packages, database,
+        providers, stored data, news calendar, models.
+        WARN for "no model" and "calendar unavailable" is normal at first.
+
+    python main.py sync --all --days 90
+        Downloads 90 days of free bid/ask history for all 3 symbols.
+        Takes several minutes and may look quiet - the free Dukascopy server
+        throttles downloads and the program retries. Just wait.
+        Failed days are retried automatically on the next sync.
+
+    python main.py signal --symbol EURUSD --auto-sync
+        Downloads anything missing, then prints the latest analysis.
+
+1.4  START THE BROWSER DASHBOARD
+--------------------------------
+    python main.py dashboard
+        Starts the server and opens http://127.0.0.1:8000 in your browser.
+    python main.py serve
+        Same, but does not open the browser.
+    Keep the PowerShell window OPEN. Closing it stops the dashboard.
+    Stop with Ctrl+C.
+    API documentation page (auto-generated): http://127.0.0.1:8000/docs
+    If port 8000 is busy:  python main.py serve --port 8001
+
+1.5  ALL COMMANDS
+-----------------
+    python main.py doctor [--deep]
+        --deep also tests the internet connection to each data provider.
+
+    python main.py sync --all                 (all symbols)
+    python main.py sync --symbol XAUUSD       (one symbol; comma list allowed)
+        --days 365            go further back in history
+        --provider yahoo      sync only one data source
+        "fetch" is the same command.
+
+    python main.py signal --symbol EURUSD [--auto-sync] [--json] [--no-persist]
+    python main.py signal --all --auto-sync
+        --auto-sync   download missing candles first, then analyse
+        --json        print the raw JSON result instead of text
+        --no-persist  do not save this analysis in the database
+
+    python main.py backtest --all --walk-forward
+        Replays all strategies on stored history with realistic costs.
+        Takes 1-3 minutes per symbol.
+
+    python main.py train --symbol XAUUSD      (or --all)
+        Trains and tests machine-learning models. Never switches them on.
+
+    python main.py model-status --all
+    python main.py model-approve <version-name>    (you approve a CANDIDATE)
+    python main.py model-rollback --symbol XAUUSD  (switch the model off)
+
+    python main.py monitor --all --on-candle-close
+        Analyses automatically after every 5-minute candle while the laptop
+        is on. Add --once to run a single cycle. Ctrl+C to stop.
+
+    python main.py paper        paper-trading summary
+    python main.py calendar     refresh news calendar + upcoming events
+
+    Exit codes: 0 = fine, 1 = error, 2 = data blocked (stale / missing).
+
+1.6  DAILY ROUTINE
+------------------
+    1. Activate the venv (section 1.1)
+    2. python main.py dashboard
+    3. In the browser: click "Sync all (job)", then "Start monitor"
+    4. Leave it running. Ctrl+C in PowerShell when done.
+The program works ONLY while the laptop is on. After days offline, run a sync:
+missed candles are re-downloaded. Ticks that happened between candles while the
+laptop was off cannot be recovered.
+
+1.7  DATA SOURCES (all free)
+----------------------------
+    History (default)  Dukascopy: real BID and ASK, about 1 day behind.
+    Live (default)     Yahoo: EUR/USD and GBP/USD only, MID price only, the
+                       spread is an ASSUMPTION (labelled "ASSUMED").
+    Gold (XAU/USD)     No free live source -> shows FEED_STALE. For live gold
+                       create a free OANDA practice account and put in .env:
+                           OANDA_TOKEN=your_practice_token
+                           OANDA_ACCOUNT_ID=your_account_id
+                           FOREX_PROVIDER=oanda
+                       then run: python main.py doctor --deep
+                       (OANDA code is written from the docs but NOT yet tested
+                       against a real account.)
+    News calendar      Free Forex Factory weekly feed (unofficial).
+
+
+================================================================================
+ PART 2 - THE BROWSER DASHBOARD (http://127.0.0.1:8000)
+================================================================================
+
+2.1  TOP BAR (every page)
+-------------------------
+    STREAM badge          green "LIVE STREAM" = connected to the server;
+                          yellow "RECONNECTING" = it retries by itself.
+    UTC / Asia/Karachi    changes how all times are displayed (remembered).
+    Clock                 current time in the chosen timezone.
+    Token button          only needed if you set API_TOKEN in .env.
+    Menu (8 pages)        Command Center, Signal Explorer, Symbol Intelligence,
+                          Model Lab, Backtest Analytics, Paper Journal,
+                          Economic Events, Settings / Health.
+
+2.2  STATUS BADGES
+------------------
+    LIVE                         data is fresh (last candle a few minutes old)
+    MARKET CLOSED - LAST UPDATED weekend / daily break
+    DELAYED - LAST UPDATED       data is stale -> trading blocked
+    DEGRADED                     candles missing recently -> run a sync
+    INSUFFICIENT DATA            not enough stored history -> run a sync
+    DEMO                         synthetic test data, never real
+    MODEL NOT READY              no approved model; only simple rules used
+                                 (this is the normal state today)
+
+2.3  PAGE 1 - COMMAND CENTER (home)
+-----------------------------------
+One card per symbol. Each card shows:
+    Bid / Ask, Spread      "(assumed)" = estimate, not a real spread
+    Feed age               minutes since the last closed 5-minute candle
+    Session / Regime       session = ASIA, LONDON, NEW_YORK, LONDON_NY_OVERLAP
+                           regime = TREND_UP, TREND_DOWN, RANGE, HIGH_VOL, QUIET
+    Forecast               UP/DOWN/NEUTRAL for next 6 candles. "P(up)" shows
+                           only if a tested model is active, otherwise
+                           NOT_CALIBRATED (a rules lean, not a probability).
+    Big action box         STRONG BUY / BUY / WAIT / SELL / STRONG SELL /
+                           CANNOT ASSESS. WAIT = no trade allowed now. A forecast
+                           of UP can still be WAIT.
+    Trade details          (only when a trade is allowed) strategy, entry zone,
+                           stop loss, take profit 1/2/3, risk:reward, expected
+                           move %, probability, valid-until time.
+    Red chips = BLOCKERS (exact reason no trade is allowed):
+        NO_VALIDATED_EDGE   strategy has no proven profit (the usual one)
+        NO_SETUP            no strategy fired on this candle
+        FEED_STALE          data too old
+        FEED_DEGRADED       candles missing
+        INSUFFICIENT_DATA   not enough history
+        MARKET_CLOSED       weekend / break
+        NEWS_BLACKOUT       big news within 30 min before / 15 min after
+        SPREAD_TOO_WIDE     spread above 25% of ATR
+        SL_TOO_WIDE         stop would be too far away
+        DAILY_CIRCUIT_BREAKER  2% simulated loss today
+        POSITION_ALREADY_OPEN / CORRELATED_USD_EXPOSURE
+        DEMO_DATA           synthetic data
+    Yellow chips = WARNINGS (SPREAD_ASSUMED_NOT_LIVE, SOURCE_SEAM_PRICE_JUMP,
+        NEWS_CALENDAR_UNAVAILABLE)
+    Short list of reasons under the chips.
+Card buttons:
+    Get signal      re-run analysis on stored data and save it
+    Sync + signal   download missing candles first, then analyse (slower)
+    Chart           open Symbol Intelligence for that symbol
+Top buttons:
+    Sync all (job)  background download for all symbols (job id appears)
+    Start monitor   auto-analyse after every 5-minute candle (server must run)
+    Pause monitor   stop it (label shows running/paused + cycles done)
+    Refresh         reload the three cards
+"Recent jobs": status QUEUED / RUNNING / DONE / FAILED. Click "Log" to read it.
+
+2.4  PAGE 2 - SIGNAL EXPLORER
+-----------------------------
+History of every analysis, including WAIT ones.
+    Filters: symbol, action (LONG / SHORT / NO_TRADE) -> click Apply
+    Export CSV: downloads signals.csv
+    Columns: time, symbol, decision, strategy, bias, regime, entry/SL/TP1,
+             probability, expected value (R), blockers, model version
+             ("rules-only" when no model is active)
+
+2.5  PAGE 3 - SYMBOL INTELLIGENCE (chart)
+-----------------------------------------
+    Drop-downs: symbol and timeframe (M5, M15, H1). Closed candles only.
+    Check boxes (overlays):
+        BOS/CHoCH          arrows: break of structure / change of character
+        Sweeps             circles: swing high/low grabbed then price returned
+        Swing/Asia levels  dashed lines: swing high/low, Asia session range
+        FVG                fair value gaps (two dotted lines per zone)
+        Order blocks       candle zone before a strong structure break
+    Right panel: regime, session, forecast, decision, reasons, blockers, every
+    strategy candidate on the latest bar and whether it has proven edge,
+    forecast for 3/6/12 candles when a model exists.
+    If the chart says "library could not be loaded" you are offline (the chart
+    script comes from a public CDN). Everything else works offline.
+
+2.6  PAGE 4 - MODEL LAB
+-----------------------
+    Symbol drop-down
+    Train (job)                  train models in the background (few minutes)
+    Sync data (job)              download missing data for the symbol
+    Roll back active model       switch active model off (asks to confirm)
+    Data health card             status, stored candles, last candle, missing
+                                 candles, sources, bars with assumed spread
+    Latest trade model card      version, algorithm, data split sizes,
+                                 rules-only baseline vs frozen model on the
+                                 untouched test slice, Brier score, AUC, note
+        Status REJECTED   did not beat the baseline - cannot be activated
+        Status CANDIDATE  passed - waits for your "Approve this model" click
+        Status APPROVED   active
+    Calibration chart    dots near the diagonal = probabilities are honest
+    Ablation table       how much the model gets worse without a feature group
+    All model versions   full list with status and date
+Models are NEVER switched on automatically. Today all trade models are REJECTED.
+
+2.7  PAGE 5 - BACKTEST ANALYTICS
+--------------------------------
+    "Run backtest + walk-forward (job)"  runs in background, 1-3 minutes
+    Tiles: trades, win rate, net expectancy (average profit per trade in R;
+           1 R = the amount risked), profit factor (above 1 = profitable),
+           max drawdown
+    Equity curve (cumulative R)
+    Strategies table (with 95% range of win rate)
+    Walk-forward table: model re-trained on the past, tested on the next unseen
+           period - the closest thing to a live test
+    Breakdowns: by session, regime, month, side (long/short)
+READ "Net EV (R)", NOT win rate. Negative = loses money after costs.
+
+2.8  PAGE 6 - PAPER JOURNAL
+---------------------------
+Simulated trades only.
+    Red notice if the daily circuit breaker tripped.
+    "Authorized signals"  trades the bot was allowed to take
+    "Shadow candidates"   setups without proven edge, tracked anyway so you can
+                          see over weeks what they would have done
+    Table: state PENDING / OPEN / CLOSED / NOFILL, fill price, stop, TP1,
+           exit reason (TP1, SL, TIMEOUT), result in R, simulated dollars.
+Fills use the next candle's open on the correct side of the spread - the same
+rules as the backtest.
+
+2.9  PAGE 7 - ECONOMIC EVENTS
+-----------------------------
+    Calendar status: OK or CALENDAR_UNAVAILABLE
+    "Refresh calendar" button
+    One card per symbol: badge CLEAR / BLACKOUT / UNAVAILABLE and a table of
+    upcoming high/medium impact events with countdown.
+    XAU/USD follows USD events; EUR/USD follows EUR+USD; GBP/USD GBP+USD.
+    BLACKOUT = high-impact news within 30 min before / 15 min after -> blocked.
+    Backtests do not use news (the free feed has no history).
+
+2.10 PAGE 8 - SETTINGS / HEALTH
+-------------------------------
+    Runtime (mode, providers, API token required?, database OK?, which keys are
+    set - values are never shown), Risk policy numbers, Providers (OK?, real
+    bid/ask?, verified?, symbols), Instruments (assumed spread, commission),
+    Recent audit log, Jobs with logs.
+    To change settings edit .env or forexintel\config.py and restart.
+
+
+================================================================================
+ PART 3 - WHAT RESPONSE YOU GET AND WHERE TO FETCH EVERYTHING
+================================================================================
+
+3.1  THE TEXT ANSWER (python main.py signal ...)
+------------------------------------------------
+Example:
+    EUR/USD  as of 2026-10-27T16:00:00+00:00 | feed HEALTHY data=LIVE provider=dukascopy+yahoo
+    data: last bar 2026-10-27T15:55:00+00:00, age 2.6 min, bars 73871, recent gaps 0
+    regime: TREND_DOWN (NORMAL vol)  session: LONDON_NY_OVERLAP  price: bid 1.11465 / ask 1.11475 (spread 0.0001, ASSUMED)
+    DIRECTIONAL FORECAST: DOWN over next 6 M5 bars  P(up)=n/a [NOT_CALIBRATED]
+    TRADE DECISION: WAIT  (NO_TRADE, strength NONE)
+      blockers: NO_SETUP
+      warnings: SPREAD_ASSUMED_NOT_LIVE, SOURCE_SEAM_PRICE_JUMP
+Meaning line by line:
+    as of          the time of the decision (close of the last 5-minute candle)
+    feed / data    HEALTHY+LIVE = fresh data; STALE = too old
+    provider       where the prices came from (history + live source)
+    last bar / age how old the newest closed candle is
+    bars / gaps    stored candles; missing candles in the last 200
+    regime/session market state and trading session
+    price          bid/ask; ASSUMED = spread is an estimate
+    FORECAST       direction lean; P(up) only when a calibrated model is active
+    TRADE DECISION BUY/SELL/WAIT; blockers = exact reasons for WAIT
+When a trade IS allowed you also get: strategy, entry zone, SL, TP1/TP2/TP3,
+R:R, expected move %, probability (+ status), expected value (R), holding time
+estimate, valid-until time.
+
+3.2  THE JSON ANSWER (python main.py signal --symbol X --json, or the API)
+--------------------------------------------------------------------------
+Important fields:
+    symbol, asof_utc, feed_status, data_mode, provider, lineage
+    regime, vol_state, session, price{bid,ask,mid,spread,spread_is_real,atr}
+    directional_forecast{bias, horizon_m5_bars, probability, status, method,
+                         evidence, by_horizon}
+    trade_action          LONG | SHORT | NO_TRADE | CANNOT_ASSESS
+    display_action        STRONG BUY | BUY | WAIT | SELL | STRONG SELL | CANNOT ASSESS
+    strength              NONE | MODERATE | STRONG
+    candidate_strategy, entry_zone, sl, tp1, tp2, tp3, rr, expected_move_pct,
+    probability{value,status}, expected_value_r, holding_minutes, valid_until_utc
+    blockers[], warnings[], reasons[]
+    candidates[]          EVERY strategy candidate, including rejected ones
+    news{state, events}, data_quality{status, bars, age_minutes, recent gaps}
+    model_version         null = rules-only
+
+3.3  WHERE EVERYTHING IS STORED
+-------------------------------
+    F:\Trading_Bot\data\forex.db         SQLite database (all results)
+    F:\Trading_Bot\data\cache\dukascopy  downloaded raw day files
+    F:\Trading_Bot\models\<SYMBOL>\      saved model files (.joblib)
+    F:\Trading_Bot\.env                  your private keys (never uploaded)
+Database tables:
+    candles (all 5-minute bars with bid/ask)   signals (every analysis)
+    strategy_candidates (all candidates)       strategy_stats (backtest evidence)
+    backtest_runs (full backtest results)      models (model versions + reports)
+    paper_positions (paper trades)             economic_events (news)
+    sync_state (last sync per source)          jobs (background tasks + logs)
+    audits (who did what)                      instruments (symbol specs)
+Browse it with any SQLite viewer (for example "DB Browser for SQLite").
+
+3.4  WHERE TO FETCH EACH THING IN THE BROWSER / API
+---------------------------------------------------
+(all addresses start with http://127.0.0.1:8000/api/v1 )
+    What you want                          Dashboard page         API address
+    -------------------------------------  ---------------------  -----------------------------
+    Server alive?                          Settings / Health      /health
+    Provider status                        Settings / Health      /providers/health
+    Non-secret settings                    Settings / Health      /settings
+    Latest price, data quality             Command Center         /markets/EURUSD/snapshot
+    Candles + chart overlays               Symbol Intelligence    /markets/EURUSD/candles?timeframe=M15&limit=300
+    Latest analysis (read only)            Command Center         /markets/EURUSD/analysis
+    Run + save analysis                    "Get signal" button    POST /signals/analyze
+    Analysis history                       Signal Explorer        /signals?symbol=EURUSD&limit=100
+    Start sync job                         "Sync all (job)"       POST /jobs/backfill
+    Start training job                     Model Lab -> Train     POST /jobs/train
+    Start backtest job                     Backtest Analytics     POST /jobs/backtest
+    Job status and log                     Recent jobs -> Log     /jobs and /jobs/<job-id>
+    Models and status                      Model Lab              /models
+    Approve / roll back model              Model Lab buttons      POST /models/<version>/approve , POST /models/rollback
+    News and blackout state                Economic Events        /calendar
+    Paper trades + performance             Paper Journal          /paper-trades
+    Latest backtest results                Backtest Analytics     /backtests?symbol=EURUSD
+    Per-strategy evidence                  (used by the gate)     /strategy-stats
+    Audit log                              Settings / Health      /audits
+    Monitor state / start / pause          Command Center         /monitor , POST /monitor/start|pause
+    Live updates (server-sent events)      STREAM badge           /stream
+Interactive API page with "Try it out" buttons: http://127.0.0.1:8000/docs
+If you set API_TOKEN in .env, send  Authorization: Bearer <token>.
+
+3.5  HOW TO TELL WHETHER THE RESULT IS CORRECT
+----------------------------------------------
+    1. Compare bid/ask on the Command Center with a live chart (EUR/USD and
+       GBP/USD should be within a pip or two). Feed age should be under ~10 min.
+    2. Every card must show BOTH a forecast and a decision. WAIT with a clear
+       blocker is a valid result.
+    3. Backtest Analytics shows the truth about profit. Today all strategies
+       have negative net EV.
+    4. Leave "Start monitor" on for weeks and read the Paper Journal. That is
+       the real forward test.
+    5. Run the automated tests:   python -m pytest tests -q   (about 5 minutes,
+       no internet needed; 75 tests).
+
+3.6  HOW A DECISION IS MADE (short)
+-----------------------------------
+    data check -> market regime -> 4 strategies run independently
+    (trend continuation, breakout+retest, liquidity sweep reversal, range
+    mean reversion) -> each candidate needs PROVEN positive profit after costs
+    (from the backtest, or from an approved calibrated model) -> safety gates
+    (stale data, spread, news, daily loss limit, open positions) -> result.
+    A single indicator disagreeing (RSI, MACD, etc.) never blocks a trade.
+    Only data problems, costs, news, risk limits and "no proven edge" can.
+
+3.7  RISK SETTINGS (change in .env or forexintel\config.py, then restart)
+------------------------------------------------------------------------
+    Risk per paper trade 0.5% of 10,000 simulated equity
+    Daily loss limit 2%; one position per symbol; max 2 same-direction USD trades
+    Spread limit 25% of ATR; news blackout 30 min before / 15 min after
+    Targets: TP1 = 1.0R, TP2 = 1.8R, TP3 = 2.8R; trades time out after 12 candles
+
+
+================================================================================
+ PART 4 - TROUBLESHOOTING
+================================================================================
+    "signal --auto-sync" looks stuck
+        The Dukascopy server is throttling. Wait 3-5 minutes, or press Ctrl+C
+        and run:  python main.py signal --symbol EURUSD   (no --auto-sync).
+        Live prices only:  python main.py sync --symbol EURUSD --provider yahoo
+    Gold shows FEED_STALE
+        Expected without a live source. Add an OANDA practice token (1.7).
+    CANNOT ASSESS / INSUFFICIENT DATA
+        python main.py sync --all --days 90
+    "running scripts is disabled" when activating the venv
+        Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
+    "python is not recognized"
+        Activate the venv first (section 1.1).
+    Port 8000 already in use
+        python main.py serve --port 8001   then open http://127.0.0.1:8001
+    Dashboard asks for a token
+        You set API_TOKEN. Click "Token" and enter it.
+    Chart does not appear
+        Needs internet for the chart script; everything else works offline.
+    Anything else
+        python main.py doctor, then Settings / Health and the job logs.
+
+
+================================================================================
+ PART 5 - PROJECT FILES AND GITHUB
+================================================================================
+    main.py                    command-line program
+    forexintel\config.py       settings, symbols, spreads, commissions
+    forexintel\providers\      data sources (dukascopy, yahoo, oanda, ...)
+    forexintel\data\           download/sync, gaps, market hours
+    forexintel\features\       indicators, market structure, sessions, news
+    forexintel\strategy\       regime, 4 strategies, trade plan, risk gates, engine
+    forexintel\research\       simulator, training, backtest, model registry
+    forexintel\paper\          paper-trading journal
+    forexintel\api\            web server + dashboard files (static\)
+    tests\                     75 automated tests
+    docs\                      detailed technical documents
+    README.md, HOW_TO_USE.txt  overview and this guide
+
+    Push new changes to GitHub:
+        git add -A
+        git commit -m "describe the change"
+        git push
+    Currently logged in to GitHub CLI as muhammadshaheryar1920-wq. The first
+    upload went to the opzer-bazal account; to move it to your own account:
+        git remote remove origin
+        gh repo create forex-scalping-intelligence --private --source=. --remote=origin --push
+
+SAFETY
+------
+    No real-money orders exist anywhere in this code. Keep the dashboard on
+    127.0.0.1 only. Never share your .env file. Research software, not
+    financial advice. Most short-term traders lose money.
+================================================================================
